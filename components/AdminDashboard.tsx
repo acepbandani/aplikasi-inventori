@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import { useAuth } from '../App';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
@@ -134,12 +133,18 @@ const ProductsView: React.FC = () => {
     }
 
     const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-        if(e.target.files && e.target.files[0]) {
-            setImageFile(e.target.files[0]);
-            // Mock image path update for preview
-            setFormState(prev => ({...prev, image: URL.createObjectURL(e.target.files![0])}))
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setImageFile(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                // When reading is finished, set the image in formState to the Base64 data URL
+                setFormState(prev => ({ ...prev, image: reader.result as string }));
+            };
+            // Read the file as a data URL (Base64 encoded)
+            reader.readAsDataURL(file);
         }
-    }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
