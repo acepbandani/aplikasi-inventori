@@ -1,44 +1,54 @@
 import { Product, Order, OrderStatus, User } from '../types';
 
-// --- Kunci LocalStorage ---
-const PRODUCTS_KEY = 'susu_uht_products';
-const ORDERS_KEY = 'susu_uht_orders';
+// --- Database dipindahkan ke npoint.io untuk sinkronisasi antar perangkat ---
+// Ini memungkinkan data menjadi terpusat dan dapat diakses oleh siapa saja.
+// Setiap perubahan akan langsung terlihat oleh semua pengguna.
 
-// --- Data Awal (digunakan jika localStorage kosong) ---
-const initialProducts: Product[] = [
-    { id: 1, name: 'Susu UHT Coklat 1L', price: 18000, stock: 150, description: 'Susu UHT rasa coklat, kaya akan kalsium dan vitamin.', image: 'https://picsum.photos/seed/milk1/400/300', status: 'Aktif' },
-    { id: 2, name: 'Susu UHT Full Cream 1L', price: 17000, stock: 200, description: 'Susu UHT murni tanpa tambahan rasa, cocok untuk keluarga.', image: 'https://picsum.photos/seed/milk2/400/300', status: 'Aktif' },
-    { id: 3, name: 'Susu UHT Stroberi 1L', price: 18500, stock: 120, description: 'Susu UHT dengan rasa stroberi segar yang disukai anak-anak.', image: 'https://picsum.photos/seed/milk3/400/300', status: 'Aktif' },
-    { id: 4, name: 'Susu UHT Low Fat 1L', price: 19000, stock: 80, description: 'Susu UHT rendah lemak, pilihan sehat untuk diet Anda.', image: 'https://picsum.photos/seed/milk4/400/300', status: 'Aktif' },
-    { id: 5, name: 'Susu UHT Vanilla 250ml', price: 5000, stock: 0, description: 'Susu UHT rasa vanilla dalam kemasan praktis.', image: 'https://picsum.photos/seed/milk5/400/300', status: 'Tidak Aktif' },
-];
+const API_URL = 'https://api.npoint.io/46f4a88f7b3c224b17f8';
 
-const initialOrders: Order[] = [
-    { id: 'INV-20251104-001', customerName: 'Budi Santoso', phone: '081234567890', address: 'Jl. Merdeka No. 10, Jakarta', productId: 2, productName: 'Susu UHT Full Cream 1L', quantity: 2, totalPrice: 34000, status: OrderStatus.CONFIRMED, orderDate: '2023-10-28', ktpPath: 'ktp_budi.jpg', latitude: -6.1754, longitude: 106.8272 },
-    { id: 'INV-20251104-002', customerName: 'Ani Yudhoyono', phone: '082345678901', address: 'Jl. Sudirman No. 15, Bandung', productId: 1, productName: 'Susu UHT Coklat 1L', quantity: 3, totalPrice: 54000, status: OrderStatus.WAITING, orderDate: '2023-10-29', ktpPath: 'ktp_ani.jpg' },
-    { id: 'INV-20251104-003', customerName: 'Citra Lestari', phone: '083456789012', address: 'Jl. Gajah Mada No. 20, Surabaya', productId: 3, productName: 'Susu UHT Stroberi 1L', quantity: 1, totalPrice: 18500, status: OrderStatus.REJECTED, orderDate: '2023-10-30', ktpPath: 'ktp_citra.jpg' },
-];
+interface Database {
+    products: Product[];
+    orders: Order[];
+}
 
-// --- Inisialisasi Data dari LocalStorage ---
-let products: Product[] = JSON.parse(localStorage.getItem(PRODUCTS_KEY) || 'null') || initialProducts;
-let orders: Order[] = JSON.parse(localStorage.getItem(ORDERS_KEY) || 'null') || initialOrders;
-
-// --- Fungsi Helper untuk menyimpan data ---
-const _saveProducts = () => {
-    localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+// Helper untuk mengambil seluruh database dari npoint.io
+const _getDb = async (): Promise<Database> => {
+    try {
+        const response = await fetch(API_URL, {
+            // Selalu ambil data terbaru dari server, jangan gunakan cache
+            cache: 'no-cache',
+        });
+        if (!response.ok) {
+            console.error("API Fetch Error:", response.status);
+            throw new Error(`Gagal mengambil data dari server.`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error("Failed to fetch from API", error);
+        throw new Error('Gagal mengambil data dari server.');
+    }
 };
 
-const _saveOrders = () => {
-    localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
+// Helper untuk menyimpan seluruh database ke npoint.io
+const _saveDb = async (db: Database): Promise<void> => {
+    try {
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(db),
+        });
+        if (!response.ok) {
+            console.error("API Save Error:", response.status);
+            throw new Error(`Gagal menyimpan data ke server.`);
+        }
+    } catch (error) {
+        console.error("Failed to save to API", error);
+        throw new Error('Gagal menyimpan data ke server.');
+    }
 };
 
-// Saat pertama kali dimuat, simpan data awal jika belum ada
-if (!localStorage.getItem(PRODUCTS_KEY)) {
-    _saveProducts();
-}
-if (!localStorage.getItem(ORDERS_KEY)) {
-    _saveOrders();
-}
 
 const users: User[] = [
     { id: 1, name: 'Admin Susu', email: 'admin@susuuht.com' }
@@ -47,6 +57,7 @@ const users: User[] = [
 const simulateDelay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 export const api = {
+    // --- Login tetap lokal, tidak memerlukan database terpusat ---
     login: async (email: string, password: string): Promise<User> => {
         await simulateDelay(500);
         if (email === 'admin@susuuht.com' && password === 'password') {
@@ -55,65 +66,87 @@ export const api = {
         throw new Error('Email atau password salah');
     },
 
+    // --- Semua fungsi CRUD sekarang berinteraksi dengan API ---
     getProducts: async (): Promise<Product[]> => {
-        await simulateDelay(300);
-        return [...products];
+        const db = await _getDb();
+        return db.products;
     },
 
     addProduct: async (productData: Omit<Product, 'id'>): Promise<Product> => {
-        await simulateDelay(500);
+        const db = await _getDb();
         const newProduct: Product = { ...productData, id: Date.now() };
-        products.push(newProduct);
-        _saveProducts(); // Simpan ke localStorage
+        db.products.push(newProduct);
+        await _saveDb(db);
         return newProduct;
     },
     
     updateProduct: async (productData: Product): Promise<Product> => {
-        await simulateDelay(500);
-        products = products.map(p => p.id === productData.id ? productData : p);
-        _saveProducts(); // Simpan ke localStorage
+        const db = await _getDb();
+        db.products = db.products.map(p => p.id === productData.id ? productData : p);
+        await _saveDb(db);
         return productData;
     },
 
     deleteProduct: async (productId: number): Promise<{ success: boolean }> => {
-        await simulateDelay(500);
-        products = products.filter(p => p.id !== productId);
-        _saveProducts(); // Simpan ke localStorage
+        const db = await _getDb();
+        db.products = db.products.filter(p => p.id !== productId);
+        await _saveDb(db);
         return { success: true };
     },
 
     getOrders: async (): Promise<Order[]> => {
-        await simulateDelay(300);
-        return [...orders].sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
+        const db = await _getDb();
+        // Sorting tetap di client-side setelah data diterima
+        return [...db.orders].sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
     },
     
     submitOrder: async (orderData: Omit<Order, 'id' | 'status' | 'orderDate' | 'productName'>): Promise<Order> => {
-        await simulateDelay(1000);
-        const product = products.find(p => p.id === orderData.productId);
+        const db = await _getDb();
+        const product = db.products.find(p => p.id === orderData.productId);
+
         if (!product) throw new Error("Produk tidak ditemukan");
         if(product.stock < orderData.quantity) throw new Error("Stok tidak mencukupi");
         
+        // Kurangi stok produk
         product.stock -= orderData.quantity;
-        _saveProducts(); // Simpan perubahan stok produk
 
         const newOrder: Order = {
             ...orderData,
-            id: `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(orders.length + 1).padStart(3, '0')}`,
+            id: `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(db.orders.length + 1).padStart(3, '0')}`,
             status: OrderStatus.WAITING,
-            orderDate: new Date().toISOString().slice(0, 10),
+            orderDate: new Date().toISOString(),
             productName: product.name,
         };
-        orders.push(newOrder);
-        _saveOrders(); // Simpan pesanan baru
+        db.orders.push(newOrder);
+        
+        await _saveDb(db);
         return newOrder;
     },
 
     updateOrderStatus: async (orderId: string, status: OrderStatus): Promise<Order> => {
-        await simulateDelay(500);
-        const order = orders.find(o => o.id === orderId);
-        if (!order) throw new Error("Pesanan tidak ditemukan");
-        order.status = status;
-        _saveOrders(); // Simpan perubahan status pesanan
-        return order;
+        const db = await _getDb();
+        let updatedOrder: Order | undefined;
+
+        db.orders = db.orders.map(order => {
+            if (order.id === orderId) {
+                // Jika pesanan ditolak, kembalikan stoknya
+                if (status === OrderStatus.REJECTED && order.status !== OrderStatus.REJECTED) {
+                    const product = db.products.find(p => p.id === order.productId);
+                    if (product) {
+                        product.stock += order.quantity;
+                    }
+                }
+                updatedOrder = { ...order, status };
+                return updatedOrder;
+            }
+            return order;
+        });
+
+        if (!updatedOrder) {
+            throw new Error("Pesanan tidak ditemukan");
+        }
+        
+        await _saveDb(db);
+        return updatedOrder;
     },
 };
