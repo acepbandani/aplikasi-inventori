@@ -1,0 +1,7 @@
+{
+  "name": "Susu UHT Inventory & Ordering",
+  "description": "A comprehensive web application for managing UHT milk inventory, processing online orders, and generating sales reports. Features a public ordering page and a secure admin dashboard.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
